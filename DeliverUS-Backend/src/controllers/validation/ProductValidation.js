@@ -14,6 +14,18 @@ const checkRestaurantExists = async (value, { req }) => {
     return Promise.reject(new Error(err))
   }
 }
+const discountBiggerThanZero = async function (value, { req }) {
+  try {
+    const restaurant = await Restaurant.findByPk(req.params.restaurantId)
+    if (restaurant.discount === 0) {
+      return Promise.reject(new Error('The restaurant has no discount'))
+    }
+    return Promise.resolve()
+  } catch (err) {
+    return Promise.reject(new Error(err))
+  }
+}
+
 const create = [
   check('name').exists().isString().isLength({ min: 1, max: 255 }).trim(),
   check('description').optional({ checkNull: true, checkFalsy: true }).isString().isLength({ min: 1 }).trim(),
@@ -23,6 +35,7 @@ const create = [
   check('productCategoryId').exists().isInt({ min: 1 }).toInt(),
   check('restaurantId').exists().isInt({ min: 1 }).toInt(),
   check('restaurantId').custom(checkRestaurantExists),
+  check('promoted').optional().custom(discountBiggerThanZero).isBoolean().toBoolean(),
   check('image').custom((value, { req }) => {
     return checkFileIsImage(req, 'image')
   }).withMessage('Please upload an image with format (jpeg, png).'),

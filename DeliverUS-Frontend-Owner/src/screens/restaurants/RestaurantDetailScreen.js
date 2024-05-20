@@ -4,7 +4,7 @@ import { StyleSheet, View, FlatList, ImageBackground, Image, Pressable } from 'r
 import { showMessage } from 'react-native-flash-message'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { getDetail } from '../../api/RestaurantEndpoints'
-import { remove } from '../../api/ProductEndpoints'
+import { remove, promote } from '../../api/ProductEndpoints'
 import ImageCard from '../../components/ImageCard'
 import TextRegular from '../../components/TextRegular'
 import TextSemiBold from '../../components/TextSemibold'
@@ -15,6 +15,7 @@ import defaultProductImage from '../../../assets/product.jpeg'
 export default function RestaurantDetailScreen ({ navigation, route }) {
   const [restaurant, setRestaurant] = useState({})
   const [productToBeDeleted, setProductToBeDeleted] = useState(null)
+  const [productToBePromoted, setProductToBePromoted] = useState(null)
 
   useEffect(() => {
     fetchRestaurantDetail()
@@ -57,11 +58,22 @@ export default function RestaurantDetailScreen ({ navigation, route }) {
   const renderProduct = ({ item }) => {
     return (
       <ImageCard
-        imageUri={item.image ? { uri: process.env.API_BASE_URL + '/' + item.image } : defaultProductImage}
-        title={item.name}
-      >
+      imageUri={item.image ? { uri: process.env.API_BASE_URL + '/' + item.image } : defaultProductImage}
+      title={
+        <TextSemiBold>
+          {item.name}
+          {item.promoted &&
+            <TextSemiBold style={{ color: 'red' }}> ({restaurant.discount}% off)</TextSemiBold>
+          }
+        </TextSemiBold>
+      }
+    >
         <TextRegular numberOfLines={2}>{item.description}</TextRegular>
-        <TextSemiBold textStyle={styles.price}>{item.price.toFixed(2)}€</TextSemiBold>
+        <TextSemiBold textStyle={styles.price}>{item.price.toFixed(2)}€ {
+          item.promoted &&
+          <TextSemiBold style={{ color: 'red' }}> Price promoted ({item.price - (item.price * restaurant.discount / 100)})€</TextSemiBold>
+        }
+        </TextSemiBold>
         {!item.availability &&
           <TextRegular textStyle={styles.availability }>Not available</TextRegular>
         }
@@ -99,6 +111,21 @@ export default function RestaurantDetailScreen ({ navigation, route }) {
             <MaterialCommunityIcons name='delete' color={'white'} size={20}/>
             <TextRegular textStyle={styles.text}>
               Delete
+            </TextRegular>
+          </View>
+        </Pressable>
+        <Pressable
+            onPress={() => { setProductToBePromoted(item) }}
+            style={({ pressed }) => [
+              {
+                backgroundColor: 'limegreen'
+              },
+              styles.actionButton
+            ]}>
+          <View style={[{ flex: 1, flexDirection: 'row', justifyContent: 'center' }]}>
+            <MaterialCommunityIcons name={item.promoted ? 'star' : 'star-outline'} color={'white'} size={20}/>
+            <TextRegular textStyle={styles.text}>
+              {item.promoted ? 'Demote' : 'Promote'}
             </TextRegular>
           </View>
         </Pressable>
@@ -152,6 +179,28 @@ export default function RestaurantDetailScreen ({ navigation, route }) {
     }
   }
 
+  const promoteProduct = async (product) => {
+    try {
+      await promote(product.id)
+      await fetchRestaurantDetail()
+      setProductToBePromoted(null)
+      showMessage({
+        message: `Product ${product.name} succesfully promoted`,
+        type: 'success',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    } catch (error) {
+      console.log(error)
+      setProductToBePromoted(null)
+      showMessage({
+        message: `Product ${product.name} could not be promoted.`,
+        type: 'error',
+        style: GlobalStyles.flashStyle,
+        titleStyle: GlobalStyles.flashTextStyle
+      })
+    }
+  }
   return (
     <View style={styles.container}>
       <FlatList
@@ -166,6 +215,12 @@ export default function RestaurantDetailScreen ({ navigation, route }) {
         isVisible={productToBeDeleted !== null}
         onCancel={() => setProductToBeDeleted(null)}
         onConfirm={() => removeProduct(productToBeDeleted)}>
+          <TextRegular>If the product belong to some order, it cannot be deleted.</TextRegular>
+      </DeleteModal>
+      <DeleteModal
+        isVisible={productToBePromoted !== null}
+        onCancel={() => setProductToBePromoted(null)}
+        onConfirm={() => promoteProduct(productToBePromoted)}>
           <TextRegular>If the product belong to some order, it cannot be deleted.</TextRegular>
       </DeleteModal>
     </View>
@@ -243,6 +298,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     bottom: 5,
     position: 'absolute',
-    width: '90%'
+    width: '60%'
   }
 })
